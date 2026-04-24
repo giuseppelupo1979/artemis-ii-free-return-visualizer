@@ -24,11 +24,11 @@ type MissionEvent = {
   detail: string;
 };
 
-const HOURS = 3600;
+const SECONDS_PER_HOUR = 3600;
 const KM_SCALE = 1 / 12500;
 const TRUE_RADIUS_SCALE = 1 / 5200;
 const ENHANCED_RADIUS_SCALE = 1 / 1900;
-const LAUNCH_UTC = Date.UTC(2026, 3, 1, 22, 35, 0);
+const LAUNCH_UTC = Date.UTC(2026, 3, 1, 22, 35, 0); // 2026-04-01 22:35:00 UTC (month is zero-indexed)
 const MISSION_HOURS = 9 * 24 + 1 + 32 / 60;
 const EARTH_RADIUS = 6378.137;
 const MOON_RADIUS = 1737.4;
@@ -36,8 +36,6 @@ const MOON_DISTANCE = 384400;
 const MOON_PERIOD_HOURS = 27.321661 * 24;
 const MU_EARTH = 398600.4418;
 const MU_MOON = 4902.800066;
-const EARTH_SOI = 924000;
-const MOON_SOI = 66100;
 
 const events: MissionEvent[] = [
   { id: 'launch', label: 'Launch', metHours: 0, code: 'LIFTOFF', detail: 'SLS lifted Orion from LC-39B at 6:35 p.m. EDT on April 1, 2026.' },
@@ -193,7 +191,12 @@ const outbound = makeTrajectoryLine(trajectoryPoints.slice(0, indexAt(events.fin
 const inbound = makeTrajectoryLine(trajectoryPoints.slice(indexAt(events.find((e) => e.id === 'closest')!.metHours)), 0x2ac7ca, 0.64);
 scene.add(outbound, inbound);
 
-const trailLine = makeTrajectoryLine([], 0xffffff, 1);
+const TRAIL_MAX = 210;
+const trailPositions = new Float32Array(TRAIL_MAX * 3);
+const trailGeometry = new THREE.BufferGeometry();
+trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+trailGeometry.setDrawRange(0, 0);
+const trailLine = new THREE.Line(trailGeometry, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 }));
 scene.add(trailLine);
 
 const craft = createCraft();
@@ -221,12 +224,16 @@ const labelItems = [
   return { ...item, el };
 });
 
+const eventsById = new Map(events.map((e) => [e.id, e]));
+const closestMetHours = eventsById.get('closest')!.metHours;
+
 const eventList = document.querySelector<HTMLDivElement>('#eventList')!;
 eventList.innerHTML = events.slice(1).map((event) => `
   <button class="event-row" data-met="${event.metHours}">
     <strong>${event.label}</strong><span>T+${formatMET(event.metHours).replace('T+', '')}</span>
   </button>
 `).join('');
+const eventRowButtons = Array.from(eventList.querySelectorAll<HTMLButtonElement>('.event-row'));
 
 const sourceBtn = document.querySelector<HTMLButtonElement>('#sourceBtn')!;
 sourceBtn.addEventListener('click', () => {
@@ -300,6 +307,19 @@ eventList.querySelectorAll<HTMLButtonElement>('.event-row').forEach((button) => 
   });
 });
 
+const miniMapCanvas = document.querySelector<HTMLCanvasElement>('#miniMap')!;
+const miniMapCtx = miniMapCanvas.getContext('2d')!;
+const miniW = miniMapCanvas.width;
+const miniH = miniMapCanvas.height;
+const miniXs = trajectory.map((s) => s.position.x);
+const miniYs = trajectory.map((s) => s.position.y);
+const miniMinX = Math.min(...miniXs), miniMaxX = Math.max(...miniXs);
+const miniMinY = Math.min(...miniYs), miniMaxY = Math.max(...miniYs);
+const miniMapStatic = document.createElement('canvas');
+miniMapStatic.width = miniW;
+miniMapStatic.height = miniH;
+buildStaticMiniMap();
+
 drawSparks();
 drawMiniMap();
 animate();
@@ -314,7 +334,7 @@ function buildTrajectory(): State[] {
     const dt = MISSION_HOURS / samples;
     const before = constrainLunarPericenter(interpolate(keys, Math.max(0, t - dt)), Math.max(0, t - dt));
     const after = constrainLunarPericenter(interpolate(keys, Math.min(MISSION_HOURS, t + dt)), Math.min(MISSION_HOURS, t + dt));
-    const velocity = after.clone().sub(before).divideScalar((Math.min(MISSION_HOURS, t + dt) - Math.max(0, t - dt)) * HOURS);
+    const velocity = after.clone().sub(before).divideScalar((Math.min(MISSION_HOURS, t + dt) - Math.max(0, t - dt)) * SECONDS_PER_HOUR);
     const moon = moonPosition(t);
     const phase = currentEvent(t);
     states.push({
@@ -324,7 +344,7 @@ function buildTrajectory(): State[] {
       moon,
       earthRange: Math.max(EARTH_RADIUS, position.length()),
       moonRange: position.distanceTo(moon),
-      speed: velocity.length() * HOURS,
+      speed: velocity.length() * SECONDS_PER_HOUR,
       phase
     });
   }
@@ -439,7 +459,7 @@ function getState(t: number) {
     moon,
     earthRange: position.length(),
     moonRange: position.distanceTo(moon),
-    speed: velocity.length() * HOURS,
+    speed: velocity.length() * SECONDS_PER_HOUR,
     phase: currentEvent(clamped)
   };
 }
@@ -600,10 +620,16 @@ function updateScene(clock: number) {
   pulse.scale.setScalar(1 + Math.sin(clock * 4) * 0.12);
   craft.lookAt(moonScene);
 
-  const trailCount = Math.max(2, indexAt(missionTime));
-  const trailPoints = trajectoryPoints.slice(Math.max(0, trailCount - 210), trailCount);
-  trailLine.geometry.dispose();
-  trailLine.geometry = new THREE.BufferGeometry().setFromPoints(trailPoints);
+  const trailEnd = Math.max(2, indexAt(missionTime));
+  const trailStart = Math.max(0, trailEnd - TRAIL_MAX);
+  const trailCount = trailEnd - trailStart;
+  const attr = trailLine.geometry.getAttribute('position') as THREE.BufferAttribute;
+  for (let i = 0; i < trailCount; i++) {
+    const pt = trajectoryPoints[trailStart + i];
+    attr.setXYZ(i, pt.x, pt.y, pt.z);
+  }
+  attr.needsUpdate = true;
+  trailLine.geometry.setDrawRange(0, trailCount);
 
   outbound.visible = ui.outboundToggle.checked;
   inbound.visible = ui.inboundToggle.checked;
@@ -627,12 +653,12 @@ function updateScene(clock: number) {
   ui.velocity.textContent = `${formatNumber(state.speed)} km/h`;
   ui.earthSparkLabel.textContent = `${formatNumber(state.earthRange)} km`;
   ui.moonSparkLabel.textContent = `${formatNumber(state.moonRange)} km`;
-  ui.leg.textContent = missionTime < events.find((e) => e.id === 'closest')!.metHours ? 'OUTBOUND' : 'INBOUND';
+  ui.leg.textContent = missionTime < closestMetHours ? 'OUTBOUND' : 'INBOUND';
   ui.moonPc.textContent = `${formatNumber(nearestMoon)} km center`;
   ui.maxEarth.textContent = `${formatNumber(maxEarthKm)} km`;
   ui.timeline.value = String((missionTime / MISSION_HOURS) * 10000);
 
-  document.querySelectorAll<HTMLButtonElement>('.event-row').forEach((button) => {
+  eventRowButtons.forEach((button) => {
     const t = Number(button.dataset.met);
     button.classList.toggle('active', Math.abs(t - state.phase.metHours) < 0.01);
     button.classList.toggle('past', t <= missionTime);
@@ -657,11 +683,12 @@ function setFocus(value: string) {
 }
 
 function projectLabels() {
+  const rect = canvas.getBoundingClientRect();
   for (const item of labelItems) {
     const p = item.object.getWorldPosition(new THREE.Vector3()).project(camera);
     const visible = p.z > -1 && p.z < 1;
     item.el.style.display = visible ? 'block' : 'none';
-    item.el.style.transform = `translate(${(p.x * 0.5 + 0.5) * innerWidth}px, ${(-p.y * 0.5 + 0.5) * innerHeight}px)`;
+    item.el.style.transform = `translate(${(p.x * 0.5 + 0.5) * rect.width + rect.left}px, ${(-p.y * 0.5 + 0.5) * rect.height + rect.top}px)`;
   }
 }
 
@@ -703,38 +730,37 @@ function drawSpark(canvasEl: HTMLCanvasElement, values: number[], color: string)
   ctx.shadowBlur = 0;
 }
 
-function drawMiniMap() {
-  const mini = document.querySelector<HTMLCanvasElement>('#miniMap')!;
-  const ctx = mini.getContext('2d')!;
-  const w = mini.width;
-  const h = mini.height;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#070c1d';
-  ctx.fillRect(0, 0, w, h);
-  const xs = trajectory.map((s) => s.position.x);
-  const ys = trajectory.map((s) => s.position.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const map = (v: THREE.Vector3): Vec2 => ({
-    x: 20 + ((v.x - minX) / (maxX - minX)) * (w - 42),
-    y: h - 18 - ((v.y - minY) / (maxY - minY)) * (h - 34)
-  });
-  ctx.strokeStyle = 'rgba(86,255,255,.72)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
+function miniMap(v: THREE.Vector3): Vec2 {
+  return {
+    x: 20 + ((v.x - miniMinX) / (miniMaxX - miniMinX)) * (miniW - 42),
+    y: miniH - 18 - ((v.y - miniMinY) / (miniMaxY - miniMinY)) * (miniH - 34)
+  };
+}
+function buildStaticMiniMap() {
+  const sCtx = miniMapStatic.getContext('2d')!;
+  sCtx.fillStyle = '#070c1d';
+  sCtx.fillRect(0, 0, miniW, miniH);
+  sCtx.strokeStyle = 'rgba(86,255,255,.72)';
+  sCtx.lineWidth = 2;
+  sCtx.beginPath();
   trajectory.forEach((s, i) => {
-    const p = map(s.position);
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
+    const p = miniMap(s.position);
+    if (i === 0) sCtx.moveTo(p.x, p.y);
+    else sCtx.lineTo(p.x, p.y);
   });
-  ctx.stroke();
+  sCtx.stroke();
+}
+
+function drawMiniMap() {
+  miniMapCtx.clearRect(0, 0, miniW, miniH);
+  miniMapCtx.drawImage(miniMapStatic, 0, 0);
   const state = getState(missionTime);
-  const p = map(state.position);
-  const e = map(new THREE.Vector3());
-  const m = map(state.moon);
-  drawDot(ctx, e.x, e.y, 6, '#80f7ff', 'EARTH');
-  drawDot(ctx, m.x, m.y, 5, '#f7d45b', 'MOON');
-  drawDot(ctx, p.x, p.y, 5, '#46ffff', 'ORION');
+  const p = miniMap(state.position);
+  const e = miniMap(new THREE.Vector3());
+  const m = miniMap(state.moon);
+  drawDot(miniMapCtx, e.x, e.y, 6, '#80f7ff', 'EARTH');
+  drawDot(miniMapCtx, m.x, m.y, 5, '#f7d45b', 'MOON');
+  drawDot(miniMapCtx, p.x, p.y, 5, '#46ffff', 'ORION');
 }
 
 function drawDot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, label: string) {
@@ -772,7 +798,7 @@ function formatMET(hours: number) {
 }
 
 function formatUTC(hours: number) {
-  const date = new Date(LAUNCH_UTC + hours * HOURS * 1000);
+  const date = new Date(LAUNCH_UTC + hours * SECONDS_PER_HOUR * 1000);
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')} ${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')} UTC`;
 }
 
