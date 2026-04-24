@@ -85,6 +85,124 @@ Apri:
 http://127.0.0.1:5173/
 ```
 
+## Installazione Su Server Linux
+
+Il progetto e pensato per essere installabile su un server Linux con pochi comandi da terminale. Dopo la pubblicazione su GitHub, sostituisci `YOUR_USER` con il tuo username GitHub se necessario.
+
+### 1. Installa Node.js e Git
+
+Su Ubuntu/Debian:
+
+```bash
+sudo apt update
+sudo apt install -y git curl
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install -y nodejs
+node --version
+npm --version
+```
+
+### 2. Clona Il Repository
+
+```bash
+git clone https://github.com/YOUR_USER/artemis-ii-free-return-visualizer.git
+cd artemis-ii-free-return-visualizer
+```
+
+### 3. Installa Dipendenze E Compila
+
+```bash
+npm ci
+npm run build
+```
+
+La build statica viene generata in:
+
+```text
+dist/
+```
+
+### 4. Avvio Rapido Sul Server
+
+Per una prova veloce:
+
+```bash
+npm run preview -- --host 0.0.0.0 --port 4173
+```
+
+Poi apri:
+
+```text
+http://SERVER_IP:4173/
+```
+
+### 5. Deploy Statico Con Nginx
+
+Per un deploy piu stabile, servi la cartella `dist/` con Nginx.
+
+Installa Nginx:
+
+```bash
+sudo apt install -y nginx
+```
+
+Copia la build:
+
+```bash
+sudo mkdir -p /var/www/artemis-ii
+sudo cp -r dist/* /var/www/artemis-ii/
+```
+
+Crea la configurazione:
+
+```bash
+sudo tee /etc/nginx/sites-available/artemis-ii >/dev/null <<'EOF'
+server {
+    listen 80;
+    server_name _;
+
+    root /var/www/artemis-ii;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+```
+
+Abilita il sito e ricarica Nginx:
+
+```bash
+sudo ln -sf /etc/nginx/sites-available/artemis-ii /etc/nginx/sites-enabled/artemis-ii
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Ora l'app sara disponibile su:
+
+```text
+http://SERVER_IP/
+```
+
+### 6. Aggiornare Il Server
+
+Quando pubblichi nuove modifiche:
+
+```bash
+cd artemis-ii-free-return-visualizer
+git pull
+npm ci
+npm run build
+sudo cp -r dist/* /var/www/artemis-ii/
+sudo systemctl reload nginx
+```
+
 ## Script Disponibili
 
 Build production:
