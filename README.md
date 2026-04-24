@@ -12,7 +12,7 @@ Visualizzatore WebGL interattivo della traiettoria free-return di Artemis II, co
 - Visualizza eventi missione: launch, Orion/ICPS separation, translunar injection, outbound correction burn, lunar SOI entry, closest lunar approach, maximum Earth distance, return correction burn, entry interface e splashdown.
 - Mostra telemetria dinamica: Mission Elapsed Time, UTC, distanza dalla Terra, distanza dalla Luna, velocita, fase corrente e stato fisico.
 - Include toggles per archi outbound/inbound, labels, trail della traiettoria e orbit guides.
-- Usa una texture fotorealistica Blue Marble NASA/MODIS per la Terra e una texture procedurale craterizzata per la Luna.
+- Usa texture fotorealistiche locali: Blue Marble NASA/MODIS per la Terra e NASA Scientific Visualization Studio/LRO per la Luna.
 
 ## Come E Stato Sviluppato
 
@@ -43,6 +43,7 @@ Fonti:
 - NASA Artemis II launch gallery: https://www.nasa.gov/gallery/artemis-ii-launch/
 - NASA postflight assessment: https://www.nasa.gov/missions/nasa-on-track-for-future-missions-with-initial-artemis-ii-assessments/
 - Texture Terra Blue Marble NASA/MODIS via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Land_shallow_topo_2048.jpg
+- Texture Luna NASA Scientific Visualization Studio via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Moon_texture.jpg
 
 ## Come Funziona
 
@@ -132,8 +133,8 @@ Lo smoke test verifica:
 
 ## Rendering
 
-La Terra usa una texture equirettangolare fotorealistica Blue Marble, caricata localmente con `THREE.TextureLoader`, `SRGBColorSpace` e anisotropic filtering. La Luna usa una texture canvas procedurale con crateri, luci direzionali e materiale ruvido. La traiettoria e renderizzata con linee Three.js, marker missione e trail dinamico.
+La Terra usa una texture equirettangolare fotorealistica Blue Marble, caricata localmente con `THREE.TextureLoader`, `SRGBColorSpace` e anisotropic filtering. La Luna usa una texture equirettangolare NASA SVS/LRO con mari, crateri e albedo reali. La traiettoria e renderizzata con linee Three.js, marker missione e trail dinamico.
 
 ## Licenze E Crediti
 
-I dati missione provengono da fonti NASA pubbliche. La texture terrestre Blue Marble/MODIS e distribuita come materiale pubblico NASA tramite Wikimedia Commons. Il codice applicativo e pronto per essere pubblicato come repository personale; aggiungere una licenza esplicita se si vuole permettere riuso pubblico formale.
+I dati missione provengono da fonti NASA pubbliche. Le texture Terra Blue Marble/MODIS e Luna NASA SVS/LRO sono distribuite come materiale pubblico NASA tramite Wikimedia Commons. Il codice applicativo e pronto per essere pubblicato come repository personale; aggiungere una licenza esplicita se si vuole permettere riuso pubblico formale.

@@ -2,6 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import earthBlueMarbleUrl from './assets/earth-blue-marble-3840.jpg';
+import moonLroUrl from './assets/moon-lro-3840.jpg';
 
 type Vec2 = { x: number; y: number };
 type State = {
@@ -453,9 +454,7 @@ function toScene(v: THREE.Vector3) {
 
 function createPlanet(kind: 'earth' | 'moon') {
   const radiusKm = kind === 'earth' ? EARTH_RADIUS : MOON_RADIUS;
-  const texture = kind === 'earth'
-    ? textureLoader.load(earthBlueMarbleUrl)
-    : new THREE.CanvasTexture(moonCanvas());
+  const texture = textureLoader.load(kind === 'earth' ? earthBlueMarbleUrl : moonLroUrl);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
   const material = new THREE.MeshStandardMaterial({
@@ -567,69 +566,6 @@ function createAxes() {
   return group;
 }
 
-function earthCanvas() {
-  const c = document.createElement('canvas');
-  c.width = 1024; c.height = 512;
-  const ctx = c.getContext('2d')!;
-  const grd = ctx.createLinearGradient(0, 0, 0, c.height);
-  grd.addColorStop(0, '#9ed8ff');
-  grd.addColorStop(0.5, '#0b3a62');
-  grd.addColorStop(1, '#06253d');
-  ctx.fillStyle = grd;
-  ctx.fillRect(0, 0, c.width, c.height);
-  ctx.globalAlpha = 0.9;
-  const land = ['#284f3e', '#3d6746', '#8b8553', '#c7c0a0'];
-  for (let i = 0; i < 46; i++) {
-    ctx.beginPath();
-    const x = Math.random() * c.width;
-    const y = Math.random() * c.height;
-    ctx.moveTo(x, y);
-    for (let j = 0; j < 18; j++) {
-      const a = (j / 18) * Math.PI * 2;
-      const r = THREE.MathUtils.randFloat(16, 75) * (0.7 + Math.sin(j * 2.1) * 0.2);
-      ctx.lineTo(x + Math.cos(a) * r * 1.8, y + Math.sin(a) * r);
-    }
-    ctx.closePath();
-    ctx.fillStyle = land[i % land.length];
-    ctx.fill();
-  }
-  ctx.globalAlpha = 0.34;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 7;
-  for (let i = 0; i < 30; i++) {
-    ctx.beginPath();
-    const y = Math.random() * c.height;
-    ctx.moveTo(0, y);
-    for (let x = 0; x <= c.width; x += 42) ctx.lineTo(x, y + Math.sin(x * 0.018 + i) * 18);
-    ctx.stroke();
-  }
-  return c;
-}
-
-function moonCanvas() {
-  const c = document.createElement('canvas');
-  c.width = 1024; c.height = 512;
-  const ctx = c.getContext('2d')!;
-  const grd = ctx.createRadialGradient(360, 180, 10, 470, 240, 610);
-  grd.addColorStop(0, '#d9e1e8');
-  grd.addColorStop(0.55, '#737d86');
-  grd.addColorStop(1, '#1a1d23');
-  ctx.fillStyle = grd;
-  ctx.fillRect(0, 0, c.width, c.height);
-  for (let i = 0; i < 180; i++) {
-    const x = Math.random() * c.width;
-    const y = Math.random() * c.height;
-    const r = THREE.MathUtils.randFloat(2, 28);
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(20,24,30,${THREE.MathUtils.randFloat(0.12, 0.36)})`;
-    ctx.fill();
-    ctx.strokeStyle = `rgba(230,238,245,${THREE.MathUtils.randFloat(0.1, 0.25)})`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-  return c;
-}
 
 function animate() {
   const now = performance.now();

@@ -70,6 +70,12 @@ const labelsHidden = await page.locator('#labels').evaluate((el) => el.classList
 const screenshotPath = `${outDir}artemis-smoke.png`;
 await page.screenshot({ path: screenshotPath, fullPage: true });
 
+const moonScreenshotPath = `${outDir}artemis-moon-texture.png`;
+await page.locator('#scaleToggle').dispatchEvent('click');
+await page.locator('#focus').selectOption('flyby');
+await page.waitForTimeout(450);
+await page.screenshot({ path: moonScreenshotPath, fullPage: true });
+
 await browser.close();
 
 if (!initial.webgl) throw new Error('WebGL context was not available');
@@ -87,5 +93,6 @@ console.log(JSON.stringify({
   afterPlay,
   afterReset,
   afterSlider,
-  screenshot: screenshotPath
+  screenshot: screenshotPath,
+  moonScreenshot: moonScreenshotPath
 }, null, 2));
